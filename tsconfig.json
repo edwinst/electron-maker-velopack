@@ -1,11 +1,18 @@
+// keep in sync with https://github.com/electron/forge/blob/main/tsconfig.base.json
 {
     "compilerOptions": {
         "module": "commonjs",
+        "target": "es2021",
+        "outDir": "dist",
+        "lib": ["dom", "ES2021"],
+        "inlineSourceMap": true,
+        "rootDir": "src",
+        "experimentalDecorators": true,
+        "strict": true,
         "esModuleInterop": true,
-        "target": "es6",
-        "moduleResolution": "node",
-        "sourceMap": true,
-        "outDir": "dist"
+        "declaration": true,
+        "composite": true,
+        "declarationMap": true,
     },
-    "lib": ["es2015"]
+    "exclude": ["node_modules", "dist"]
 }

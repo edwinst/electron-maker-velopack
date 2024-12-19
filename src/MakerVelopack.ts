@@ -3,6 +3,12 @@ import { ForgePlatform } from '@electron-forge/shared-types';
 import path from 'path';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { hasUncaughtExceptionCaptureCallback } from 'node:process';
+
+const hasProp = <K extends PropertyKey, T>(obj: T, prop: K): obj is T & Record<K, unknown> => {
+    return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
 
 export type MakerVelopackConfig = {
     allowInteraction?: boolean,
@@ -48,10 +54,7 @@ const default_vpk_program = "vpk";
  * @see {@link https://semver.org/ | Semantic Versioning specification}
  * @see {@link https://learn.microsoft.com/en-us/nuget/concepts/package-versioning?tabs=semver20sort | NuGet versioning specification}
  */
-function convertVersion(version: string | null): string | null {
-    if (version == null)
-        return null;
-
+function convertVersion(version: string): string {
     const parts = version.split('+')[0].split('-');
     const mainVersion = parts.shift();
 
@@ -64,9 +67,7 @@ function convertVersion(version: string | null): string | null {
 
 // --- END of code from electron-winstaller ---------------------
 
-function convertNameToNupkgId(name: string | null): string | null {
-    if (name == null)
-        return null;
+function convertNameToNupkgId(name: string): string  {
     return name.replace(/[^-A-Za-z0-9_.]/g, "_");
 }
 
@@ -138,9 +139,11 @@ to make changes in PATH effective.)
         }
 
         // we don't check forgeConfig.packagerConfig.appBundleId, as I think that is MacOS-specific
-        const pack_id = this.config.packId ?? convertNameToNupkgId(forgeConfig.packagerConfig.name) ?? convertNameToNupkgId(appName);
+        const packid_name = forgeConfig.packagerConfig.name ?? appName;
+        const pack_id = this.config.packId ?? convertNameToNupkgId(packid_name);
 
-        const version = this.config.packVersion ?? convertVersion(forgeConfig.packagerConfig.appVersion) ?? convertVersion(packageJSON.version as string);
+        const _version = forgeConfig.packagerConfig.appVersion ?? packageJSON.version;
+        const version = this.config.packVersion ?? convertVersion(_version);
         const title = this.config.packTitle ?? forgeConfig.packagerConfig.name ?? packageJSON.productName ?? appName;
         const icon = this.config.icon ?? forgeConfig.packagerConfig.icon;
 
@@ -153,7 +156,7 @@ to make changes in PATH effective.)
 
         const vpk_program = this.getVpkProgram();
 
-        const vpk_args = ["pack",
+        const vpk_args: string[] = ["pack",
                           "--packId", pack_id,
                           "--packVersion", version,
                           "--packDir", dir,
@@ -229,7 +232,15 @@ to make changes in PATH effective.)
             execFileSync(vpk_program, vpk_args, { stdio: this.config.allowInteraction ? "inherit" : "pipe" });
         }
         catch (error) {
-            throw new Error(`Could not create velopack package.\nFailed command: ${vpk_command}\n\n${error.stdout}\n\n${error.stderr ?? error}\n`);
+            if (error == null)
+                throw new Error(`Could not create velopack package.\nFailed command: ${vpk_command}\n\n`);
+            if (typeof error === "object") {
+                const stdout =  hasProp(error, "stdout") ? "\n\n"+error.stdout : "";
+                const stderr =  hasProp(error, "stderr") ? "\n\n"+error.stderr : "";
+                const message = (error instanceof Error) ? "\n\n"+error.message : "";
+                throw new Error(`Could not create velopack package.\nFailed command: ${vpk_command}${message}${stdout}${stderr}\n`);
+            }
+            throw new Error(`Could not create velopack package.\nFailed command: ${vpk_command}\n\n${error}\n`);
         }
 
         const artifacts = [
